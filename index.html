@@ -1,1 +1,415 @@
 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ますチキンの会</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&family=Shippori+Mincho:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --paper:#FFF8EC;
+    --paper-dim:#F3EAD4;
+    --ink:#2B1B12;
+    --ink-soft:#6B5A48;
+    --amber:#E8A33D;
+    --amber-dark:#B9781F;
+    --paprika:#C4432B;
+    --sage:#6B7A4F;
+    --line:#DFCCA5;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper-dim);
+    color:var(--ink);
+    font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:520px;
+    margin:0 auto;
+    padding:20px 16px 60px;
+  }
+
+  header{ text-align:left; padding:8px 4px 20px; }
+  .kicker{ font-size:13px; color:var(--ink-soft); letter-spacing:.02em; margin:0 0 2px; }
+  h1{
+    font-family:"Shippori Mincho",serif;
+    font-weight:700;
+    font-size:30px;
+    margin:0;
+    line-height:1.3;
+  }
+  h1 span{ display:inline-block; background:linear-gradient(transparent 60%, var(--amber) 60%); }
+  .month-row{ display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .month-row input[type=month]{
+    font-family:inherit; font-size:14px; border:none; background:none; color:var(--ink-soft); padding:2px 0;
+  }
+  .sync-badge{
+    font-size:11px;
+    color:var(--sage);
+    display:flex;
+    align-items:center;
+    gap:5px;
+    margin-top:6px;
+  }
+  .sync-dot{
+    width:7px;height:7px;border-radius:50%;background:var(--sage);
+    box-shadow:0 0 0 0 rgba(107,122,79,.5);
+    animation:pulse 2s infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(107,122,79,.4);}
+    70%{box-shadow:0 0 0 6px rgba(107,122,79,0);}
+    100%{box-shadow:0 0 0 0 rgba(107,122,79,0);}
+  }
+  .sync-badge.offline .sync-dot{ background:var(--paprika); animation:none; }
+  .sync-badge.offline{ color:var(--paprika); }
+
+  .slip{
+    background:var(--paper);
+    border-radius:4px;
+    border:1px solid var(--line);
+    box-shadow:0 2px 0 var(--line);
+    padding:20px 22px 0;
+    margin-bottom:28px;
+  }
+  .slip-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding:9px 0; border-bottom:1px dashed var(--line); font-size:15px;
+  }
+  .slip-row:first-child{padding-top:0;}
+  .slip-row .num{ font-variant-numeric:tabular-nums; font-weight:700; }
+  .slip-total{ display:flex; justify-content:space-between; align-items:baseline; padding:16px 0 18px; }
+  .slip-total .label{ font-size:15px; color:var(--ink-soft); }
+  .slip-total .yen{
+    font-size:32px; font-weight:900; color:var(--paprika); font-variant-numeric:tabular-nums;
+  }
+  .perforation{ height:0; border-top:2px dashed var(--line); margin:0 -22px; position:relative; }
+
+  .list{ display:flex; flex-direction:column; gap:10px; }
+  .row{
+    background:var(--paper); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; display:flex; align-items:center; gap:10px; transition:opacity .15s ease;
+  }
+  .row.absent{opacity:.55;}
+
+  .name-field{ flex:1; min-width:0; }
+  .name-field input{
+    width:100%; border:none; background:none; font-family:inherit; font-size:16px;
+    font-weight:500; color:var(--ink); padding:4px 2px; border-bottom:1px solid transparent;
+  }
+  .name-field input:focus{ outline:none; border-bottom:1px solid var(--amber-dark); }
+
+  .stamp-btn{
+    flex-shrink:0; width:56px; height:56px; border-radius:50%;
+    border:2px solid #cbb989; background:transparent; color:var(--ink-soft);
+    font-family:"Shippori Mincho",serif; font-size:13px; font-weight:700; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; line-height:1.15;
+    transition:transform .1s ease, border-color .15s ease, color .15s ease;
+  }
+  .stamp-btn.on{ border:2.5px solid var(--paprika); color:var(--paprika); transform:rotate(-6deg); }
+  .stamp-btn:active{transform:scale(.92) rotate(-6deg);}
+
+  .stepper{ flex-shrink:0; display:flex; align-items:center; gap:6px; width:96px; justify-content:center; }
+  .stepper button{
+    width:28px; height:28px; border-radius:50%; border:1px solid var(--line);
+    background:var(--paper-dim); color:var(--ink); font-size:16px; line-height:1; cursor:pointer;
+  }
+  .stepper button:disabled{opacity:.3; cursor:default;}
+  .stepper .count{ min-width:22px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums; }
+
+  .del-btn{
+    flex-shrink:0; width:22px; height:22px; border:none; background:none;
+    color:#c9b592; font-size:16px; cursor:pointer; line-height:1;
+  }
+  .del-btn:hover{ color:var(--paprika); }
+
+  .add-row{ margin-top:16px; display:flex; gap:8px; }
+  .add-row input{
+    flex:1; border:1px dashed var(--line); border-radius:10px; background:var(--paper);
+    padding:12px 14px; font-family:inherit; font-size:15px; color:var(--ink);
+  }
+  .add-row input:focus{ outline:none; border-color:var(--amber-dark); }
+  .add-row button{
+    border:none; border-radius:10px; background:var(--amber); color:#3a2205;
+    font-family:inherit; font-weight:700; font-size:15px; padding:0 18px; cursor:pointer;
+  }
+  .add-row button:active{ background:var(--amber-dark); }
+
+  .foot-note{ margin-top:28px; font-size:12px; color:var(--ink-soft); text-align:center; line-height:1.7; }
+  .reset-link{
+    display:block; text-align:center; margin-top:10px; font-size:12px; color:var(--ink-soft);
+    text-decoration:underline; cursor:pointer; background:none; border:none; font-family:inherit;
+  }
+
+  .setup-banner{
+    background:#FCEFD8;
+    border:1px solid var(--amber-dark);
+    border-radius:10px;
+    padding:14px 16px;
+    font-size:13px;
+    line-height:1.7;
+    color:var(--ink);
+    margin-bottom:20px;
+  }
+  .setup-banner code{
+    background:#fff;
+    padding:1px 5px;
+    border-radius:4px;
+    font-size:12px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="kicker">毎月恒例</p>
+    <h1><span>ますチキンの会</span></h1>
+    <div class="month-row">
+      🗓 <input type="month" id="monthInput">
+    </div>
+    <div class="sync-badge" id="syncBadge"><span class="sync-dot"></span><span id="syncText">同期中…</span></div>
+  </header>
+
+  <div id="setupBanner" class="setup-banner" style="display:none">
+    ⚠️ Firebaseの設定がまだ入っていません。&lt;script&gt;内の <code>firebaseConfig</code> に、コンソールでコピーした値を貼り付けてください。それまでは全員同期は動きません。
+  </div>
+
+  <div class="slip">
+    <div class="slip-row"><span>参加人数</span><span class="num" id="attendCount">0人</span></div>
+    <div class="slip-row"><span>チキン合計</span><span class="num" id="chickenCount">0セット</span></div>
+    <div class="perforation"></div>
+    <div class="slip-total">
+      <span class="label">合計金額（@600円）</span>
+      <span class="yen" id="totalYen">¥0</span>
+    </div>
+  </div>
+
+  <div class="list" id="list"></div>
+
+  <div class="add-row">
+    <input type="text" id="newName" placeholder="メンバーを追加">
+    <button id="addBtn">追加</button>
+  </div>
+
+  <p class="foot-note">
+    ⚫ハンコをタップで参加／不参加を切り替え。数字の＋－でチキンの数を調整できます。<br>
+    名前欄をタップすると編集できます。データは全員のスマホでリアルタイムに同期されます。
+  </p>
+  <button class="reset-link" id="resetBtn">全員のデータをリセット</button>
+
+</div>
+
+<script>
+/* ============================================================
+   ★★★ ここに Firebase コンソールでコピーした firebaseConfig を貼り付けてください ★★★
+   Firebaseコンソール → プロジェクトの設定 → マイアプリ → SDKの設定と構成
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyB-xiYAHRaluzI8mQRF5Z7XSOKyQzcitQ0",
+  authDomain: "maschikin.firebaseapp.com",
+  databaseURL: "https://maschikin-default-rtdb.firebaseio.com",
+  projectId: "maschikin",
+  storageBucket: "maschikin.firebasestorage.app",
+  messagingSenderId: "474685454241",
+  appId: "1:474685454241:web:9d25f02d7d7e1e15263de0",
+  measurementId: "G-C9E8DE5YL0"
+};
+
+const PRICE = 600;
+const defaultNames = [
+  "あき","あゆみ","かおり","ゆみ","美穂",
+  "美智代","華恵","のりこ","ちえ","優里",
+  "千明","kumi","mayume","natuko.g","Sanae","Sayumi","ゆい"
+];
+
+const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
+document.getElementById("setupBanner").style.display = isConfigured ? "none" : "block";
+
+let members = [];       // [{id, name, attending, count, order}]
+let typingLock = false; // true while a name field is focused, to avoid cursor jumps
+let pendingRender = false;
+
+const listEl = document.getElementById("list");
+const monthInput = document.getElementById("monthInput");
+const syncBadge = document.getElementById("syncBadge");
+const syncText = document.getElementById("syncText");
+
+function currentMonthDefault(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+}
+
+let membersRef = null;
+let monthRef = null;
+
+if(isConfigured){
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  membersRef = db.ref("members");
+  monthRef = db.ref("month");
+
+  db.ref(".info/connected").on("value", (snap) => {
+    if(snap.val() === true){
+      syncBadge.classList.remove("offline");
+      syncText.textContent = "全員に同期中";
+    }else{
+      syncBadge.classList.add("offline");
+      syncText.textContent = "接続待ち…";
+    }
+  });
+
+  membersRef.once("value").then((snap) => {
+    if(!snap.exists()){
+      // seed initial members
+      const seed = {};
+      defaultNames.forEach((name, i) => {
+        const key = membersRef.push().key;
+        seed[key] = { name, attending: null, count: 1, order: i };
+      });
+      membersRef.set(seed);
+    }
+  });
+
+  membersRef.on("value", (snap) => {
+    const data = snap.val() || {};
+    members = Object.keys(data).map(id => ({ id, ...data[id] }))
+      .sort((a,b) => (a.order||0) - (b.order||0));
+    if(typingLock){ pendingRender = true; } else { render(); }
+  });
+
+  monthRef.on("value", (snap) => {
+    const v = snap.val();
+    if(v && document.activeElement !== monthInput) monthInput.value = v;
+    else if(!v) monthInput.value = currentMonthDefault();
+  });
+
+  monthInput.addEventListener("change", () => {
+    monthRef.set(monthInput.value);
+  });
+}else{
+  // offline fallback so the page still works before Firebase is configured
+  syncText.textContent = "未設定（ローカルのみ）";
+  syncBadge.classList.add("offline");
+  monthInput.value = currentMonthDefault();
+  members = defaultNames.map((name, i) => ({ id: "local"+i, name, attending: null, count: 1, order: i }));
+  render();
+}
+
+function writeMember(id, patch){
+  if(membersRef) membersRef.child(id).update(patch);
+  else { const m = members.find(x=>x.id===id); if(m) Object.assign(m, patch); render(); }
+}
+function removeMember(id){
+  if(membersRef) membersRef.child(id).remove();
+  else { members = members.filter(x=>x.id!==id); render(); }
+}
+function addMember(name){
+  if(membersRef){
+    const key = membersRef.push().key;
+    membersRef.child(key).set({ name, attending: null, count: 1, order: Date.now() });
+  }else{
+    members.push({ id: "local"+Date.now(), name, attending: null, count: 1, order: Date.now() });
+    render();
+  }
+}
+
+function render(){
+  listEl.innerHTML = "";
+  members.forEach(m => {
+    const row = document.createElement("div");
+    row.className = "row" + (m.attending === false || m.attending == null ? "" : "");
+    row.className = "row" + (!m.attending ? " absent" : "");
+
+    const nameWrap = document.createElement("div");
+    nameWrap.className = "name-field";
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.value = m.name;
+    nameInput.addEventListener("focus", () => { typingLock = true; });
+    nameInput.addEventListener("blur", () => {
+      typingLock = false;
+      if(nameInput.value.trim() && nameInput.value !== m.name){
+        writeMember(m.id, { name: nameInput.value.trim() });
+      }
+      if(pendingRender){ pendingRender = false; render(); }
+    });
+    nameInput.addEventListener("keydown", (e) => { if(e.key === "Enter") nameInput.blur(); });
+    nameWrap.appendChild(nameInput);
+
+    const stamp = document.createElement("button");
+    stamp.className = "stamp-btn" + (m.attending ? " on" : "");
+    stamp.textContent = m.attending ? "参加" : "不参加";
+    stamp.addEventListener("click", () => {
+      writeMember(m.id, { attending: !m.attending });
+    });
+
+    const stepper = document.createElement("div");
+    stepper.className = "stepper";
+    const minus = document.createElement("button");
+    minus.textContent = "－";
+    minus.disabled = !m.attending || (m.count||0) <= 0;
+    minus.addEventListener("click", () => { writeMember(m.id, { count: Math.max(0,(m.count||0)-1) }); });
+    const countEl = document.createElement("span");
+    countEl.className = "count";
+    countEl.textContent = m.count != null ? m.count : 1;
+    const plus = document.createElement("button");
+    plus.textContent = "＋";
+    plus.disabled = !m.attending;
+    plus.addEventListener("click", () => { writeMember(m.id, { count: (m.count||0)+1 }); });
+    stepper.appendChild(minus);
+    stepper.appendChild(countEl);
+    stepper.appendChild(plus);
+
+    const del = document.createElement("button");
+    del.className = "del-btn";
+    del.textContent = "×";
+    del.title = "削除";
+    del.addEventListener("click", () => {
+      if(confirm(m.name + " を削除しますか？")) removeMember(m.id);
+    });
+
+    row.appendChild(nameWrap);
+    row.appendChild(stamp);
+    row.appendChild(stepper);
+    row.appendChild(del);
+    listEl.appendChild(row);
+  });
+
+  updateSummary();
+}
+
+function updateSummary(){
+  const attending = members.filter(m => m.attending);
+  const totalChicken = attending.reduce((sum, m) => sum + (m.count || 0), 0);
+  const totalYen = totalChicken * PRICE;
+  document.getElementById("attendCount").textContent = attending.length + "人";
+  document.getElementById("chickenCount").textContent = totalChicken + "セット";
+  document.getElementById("totalYen").textContent = "¥" + totalYen.toLocaleString();
+}
+
+document.getElementById("addBtn").addEventListener("click", () => {
+  const input = document.getElementById("newName");
+  const name = input.value.trim();
+  if(!name) return;
+  addMember(name);
+  input.value = "";
+});
+document.getElementById("newName").addEventListener("keydown", (e) => {
+  if(e.key === "Enter") document.getElementById("addBtn").click();
+});
+
+document.getElementById("resetBtn").addEventListener("click", () => {
+  if(confirm("参加状況とチキンの数をすべてリセットしますか？（メンバー自体は残ります）")){
+    members.forEach(m => writeMember(m.id, { attending: null, count: 1 }));
+  }
+});
+</script>
+</body>
+</html>
